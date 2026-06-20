@@ -97,3 +97,63 @@ class DeliverableOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# --- Campaign workflow (Goal -> Layout -> Content -> Preview -> Audience -> Generate -> Review -> Launch) ---
+
+
+class CampaignCreate(BaseModel):
+    brand_id: str
+
+
+class GoalRequest(BaseModel):
+    goal_text: str
+    intent: str  # e.g. "promotion", "event", "announcement"
+
+
+class LayoutRequest(BaseModel):
+    document_type_key: str
+    style_lora_model_id: str | None = None
+    canvas_width: int = 1024
+    canvas_height: int = 1024
+    grid_pages: list[dict] | None = None  # e.g. [{"month": 6, "year": 2026}]
+
+
+class ContentTextRequest(BaseModel):
+    text_fields: dict
+
+
+class PreviewSaveRequest(BaseModel):
+    canvas_json: dict
+
+
+class AudienceAnswerRequest(BaseModel):
+    key: str
+    answer: str
+
+
+class AudienceQuestionOut(BaseModel):
+    key: str
+    question: str
+
+
+class ReviewRequest(BaseModel):
+    approved: bool
+    comments: str | None = None
+
+
+class CampaignOut(BaseModel):
+    id: str
+    brand_id: str
+    deliverable_id: str | None
+    stage: str
+    goal: dict
+    layout: dict
+    content: dict
+    preview: dict
+    audience: dict
+    review: dict
+    launch: dict
+
+    class Config:
+        from_attributes = True

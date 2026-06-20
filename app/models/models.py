@@ -42,6 +42,31 @@ class FulfillmentType(str, enum.Enum):
     live_publish = "live_publish"         # hosted site / scheduled social post (not implemented)
 
 
+class CampaignStage(str, enum.Enum):
+    goal = "goal"
+    layout = "layout"
+    content = "content"
+    preview = "preview"
+    audience = "audience"
+    generate = "generate"
+    review = "review"
+    launch = "launch"
+    done = "done"
+
+
+STAGE_ORDER = [
+    CampaignStage.goal,
+    CampaignStage.layout,
+    CampaignStage.content,
+    CampaignStage.preview,
+    CampaignStage.audience,
+    CampaignStage.generate,
+    CampaignStage.review,
+    CampaignStage.launch,
+    CampaignStage.done,
+]
+
+
 class Brand(Base):
     __tablename__ = "brands"
 
@@ -155,3 +180,65 @@ class DeliverablePage(Base):
     @params.setter
     def params(self, value: dict) -> None:
         self.params_json = json.dumps(value or {})
+
+
+def _json_property(attr: str):
+    def getter(self):
+        return json.loads(getattr(self, attr) or "{}")
+
+    def setter(self, value: dict):
+        setattr(self, attr, json.dumps(value or {}))
+
+    return property(getter, setter)
+
+
+class Campaign(Base):
+    """End-to-end workflow instance: Goal -> Layout -> Content -> Preview ->
+    Audience -> Generate -> Review -> Launch. Each stage's working data is kept
+    in its own JSON blob so the workflow doesn't need a table per stage; the
+    `deliverable_id` link is set once Generate has run."""
+
+    __tablename__ = "campaigns"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    brand_id = Column(String, ForeignKey("brands.id"), nullable=False)
+    deliverable_id = Column(String, ForeignKey("deliverables.id"), nullable=True)
+    stage = Column(Enum(CampaignStage), default=CampaignStage.goal)
+
+    goal_json = Column(Text, default="{}")
+    layout_json = Column(Text, default="{}")
+    content_json = Column(Text, default="{}")
+    preview_json = Column(Text, default="{}")
+    audience_json = Column(Text, default="{}")
+    review_json = Column(Text, default="{}")
+    launch_json = Column(Text, default="{}")
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    brand = relationship("Brand")
+    deliverable = relationship("Deliverable")
+    assets = relationship("CampaignAsset", back_populates="campaign", cascade="all, delete-orphan")
+
+    goal = _json_property("goal_json")
+    layout = _json_property("layout_json")
+    content = _json_property("content_json")
+    preview = _json_property("preview_json")
+    audience = _json_property("audience_json")
+    review = _json_property("review_json")
+    launch = _json_property("launch_json")
+
+
+class CampaignAsset(Base):
+    """A content-stage photo upload (distinct from BrandAsset, which feeds LoRA
+    training/IP-Adapter), e.g. product shots dropped into the layout by the user."""
+
+    __tablename__ = "campaign_assets"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    campaign_id = Column(String, ForeignKey("campaigns.id"), nullable=False)
+    file_path = Column(String, nullable=False)
+    label = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    campaign = relationship("Campaign", back_populates="assets")

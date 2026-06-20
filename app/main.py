@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api import brands, deliverables, document_types, training
+from app.api import brands, campaigns, deliverables, document_types, training
 from app.core.db import Base, SessionLocal, engine
 from app.services.catalog_seed import seed_document_types
 
@@ -15,6 +15,7 @@ app.include_router(brands.router)
 app.include_router(training.router)
 app.include_router(document_types.router)
 app.include_router(deliverables.router)
+app.include_router(campaigns.router)
 
 
 @app.get("/health")
