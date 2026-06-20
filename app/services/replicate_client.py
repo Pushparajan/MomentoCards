@@ -28,23 +28,26 @@ def get_training(training_id: str) -> Any:
 
 
 def generate_calendar_page(
-    canny_image_url: str,
+    canny_image_url: Any | None,
     ip_adapter_image_url: str | None,
     lora_weights_url: str | None,
     prompt: str,
     negative_prompt: str,
 ) -> Any:
-    """Single chained call: structural Grid/Vector style + brand LoRA (or generic
-    Brand Asset LoRA) + ControlNet Canny (grid fidelity) + IP-Adapter (brand
-    colors/mood) feeding one Flux/SDXL prediction."""
+    """Single chained call: structural layout/style tags + brand LoRA (or generic
+    Brand Asset LoRA) + ControlNet Canny (only for grid layouts that need exact
+    line fidelity) + IP-Adapter (brand colors/mood) feeding one Flux/SDXL
+    prediction. `canny_image_url` is None for layouts with no code-generated
+    grid (flyers, posters, brochures, ...)."""
     model_input = {
         "prompt": prompt,
         "negative_prompt": negative_prompt,
-        "control_image": canny_image_url,
-        "controlnet_conditioning_scale": 0.85,
         "guidance_scale": 4.0,
         "num_inference_steps": 28,
     }
+    if canny_image_url is not None:
+        model_input["control_image"] = canny_image_url
+        model_input["controlnet_conditioning_scale"] = 0.85
     if lora_weights_url:
         model_input["lora_weights"] = lora_weights_url
         model_input["lora_scale"] = 0.8
