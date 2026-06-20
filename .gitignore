@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+*.db
+storage/assets/*
+storage/grids/*
+storage/outputs/*
+!storage/assets/.gitkeep
+!storage/grids/.gitkeep
+!storage/outputs/.gitkeep
+.venv/
