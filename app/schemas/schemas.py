@@ -137,6 +137,10 @@ class AudienceQuestionOut(BaseModel):
     question: str
 
 
+class FinalCanvasSaveRequest(BaseModel):
+    canvas_json: dict
+
+
 class ReviewRequest(BaseModel):
     approved: bool
     comments: str | None = None

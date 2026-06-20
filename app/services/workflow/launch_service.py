@@ -14,6 +14,8 @@ def launch(db: Session, campaign: Campaign) -> Campaign:
     deliverable = campaign.deliverable
     if not deliverable or deliverable.status != JobStatus.succeeded:
         raise HTTPException(400, "Deliverable is not finished generating yet")
+    if not campaign.review.get("final_approved"):
+        raise HTTPException(400, "Final WYSIWYG canvas must be saved and approved before launch")
 
     output_urls = [p.output_url for p in deliverable.pages]
     campaign.launch = {"output_urls": output_urls, "fulfillment": "digital_export"}

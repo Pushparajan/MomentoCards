@@ -9,6 +9,7 @@ from app.schemas.schemas import (
     CampaignCreate,
     CampaignOut,
     ContentTextRequest,
+    FinalCanvasSaveRequest,
     GoalRequest,
     LayoutRequest,
     PreviewSaveRequest,
@@ -130,6 +131,12 @@ def complete_audience(campaign_id: str, db: Session = Depends(get_db)):
 def generate(campaign_id: str, db: Session = Depends(get_db)):
     campaign = _get_campaign(db, campaign_id)
     return generate_service.run_generate(db, campaign)
+
+
+@router.put("/{campaign_id}/review/final-canvas", response_model=CampaignOut)
+def save_final_canvas(campaign_id: str, payload: FinalCanvasSaveRequest, db: Session = Depends(get_db)):
+    campaign = _get_campaign(db, campaign_id)
+    return review_service.save_final_canvas(db, campaign, payload.canvas_json)
 
 
 @router.post("/{campaign_id}/review", response_model=CampaignOut)
