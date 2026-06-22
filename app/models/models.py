@@ -67,16 +67,45 @@ STAGE_ORDER = [
 ]
 
 
+class LoraCategory(str, enum.Enum):
+    branding = "branding"        # brand identity (logo/colors/style)
+    typography = "typography"    # type/font feel
+    locale = "locale"            # regional setting cues
+    community = "community"      # cultural/community cues
+    subject = "subject"          # subject/character consistency
+
+
+class MediaType(str, enum.Enum):
+    image = "image"
+    video = "video"
+
+
+class Organization(Base):
+    """Top-level tenant. Brands belong to an Organization; this is the
+    foundation for multi-tenant isolation (auth/membership enforcement is not
+    implemented yet -- this only establishes the data boundary)."""
+
+    __tablename__ = "organizations"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    name = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    brands = relationship("Brand", back_populates="organization")
+
+
 class Brand(Base):
     __tablename__ = "brands"
 
     id = Column(String, primary_key=True, default=gen_id)
+    organization_id = Column(String, ForeignKey("organizations.id"), nullable=True)
     name = Column(String, nullable=False)
     primary_color = Column(String, nullable=True)
     secondary_color = Column(String, nullable=True)
     mood_keywords = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    organization = relationship("Organization", back_populates="brands")
     assets = relationship("BrandAsset", back_populates="brand", cascade="all, delete-orphan")
     lora_models = relationship("LoraModel", back_populates="brand", cascade="all, delete-orphan")
 
@@ -94,10 +123,15 @@ class BrandAsset(Base):
 
 
 class LoraModel(Base):
+    """A privately-trained, brand-owned LoRA. `category` slots it into the
+    branding/typography/locale/community/subject preset matrix; weights_url
+    is never returned to the client directly (see schemas.LoraTrainingOut)."""
+
     __tablename__ = "lora_models"
 
     id = Column(String, primary_key=True, default=gen_id)
     brand_id = Column(String, ForeignKey("brands.id"), nullable=False)
+    category = Column(Enum(LoraCategory), default=LoraCategory.branding)
     replicate_training_id = Column(String, nullable=True)
     status = Column(Enum(TrainingStatus), default=TrainingStatus.pending)
     weights_url = Column(String, nullable=True)
@@ -106,6 +140,23 @@ class LoraModel(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     brand = relationship("Brand", back_populates="lora_models")
+
+
+class SharedLoraPreset(Base):
+    """A platform-owned LoRA usable across tenants for a given category (e.g.
+    a 'Tamil Nadu locale' or 'urban family community' preset), as opposed to a
+    brand's own private LoraModel. Selected the same way in generation params,
+    just sourced from this table instead of LoraModel."""
+
+    __tablename__ = "shared_lora_presets"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    key = Column(String, unique=True, nullable=False)
+    name = Column(String, nullable=False)
+    category = Column(Enum(LoraCategory), nullable=False)
+    weights_url = Column(String, nullable=False)
+    default_weight = Column(String, default="0.5")
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class DocumentType(Base):
@@ -139,6 +190,7 @@ class Deliverable(Base):
     document_type_id = Column(String, ForeignKey("document_types.id"), nullable=False)
     title = Column(String, nullable=True)
     style = Column(String, default="vector")  # vector | photographic | minimal
+    media_type = Column(Enum(MediaType), default=MediaType.image)
     status = Column(Enum(JobStatus), default=JobStatus.pending)
     error = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -166,7 +218,10 @@ class DeliverablePage(Base):
     canny_path = Column(String, nullable=True)
     replicate_prediction_id = Column(String, nullable=True)
     status = Column(Enum(JobStatus), default=JobStatus.pending)
-    output_url = Column(String, nullable=True)
+    output_url = Column(String, nullable=True)  # app-owned storage URL, never the raw provider URL
+    video_replicate_prediction_id = Column(String, nullable=True)
+    video_status = Column(Enum(JobStatus), nullable=True)
+    video_url = Column(String, nullable=True)
     error = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -242,3 +297,16 @@ class CampaignAsset(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     campaign = relationship("Campaign", back_populates="assets")
+
+
+class WebhookEvent(Base):
+    """Records every Replicate webhook delivery by provider prediction id so
+    handling stays idempotent under at-least-once delivery -- a duplicate
+    webhook for a prediction we've already processed is a no-op."""
+
+    __tablename__ = "webhook_events"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    provider_prediction_id = Column(String, unique=True, nullable=False)
+    payload_json = Column(Text, default="{}")
+    processed_at = Column(DateTime, default=datetime.utcnow)

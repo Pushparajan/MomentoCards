@@ -23,14 +23,51 @@ class BrandOut(BaseModel):
 
 
 class LoraTrainingOut(BaseModel):
+    """Never exposes weights_url/file paths to the client -- only enough to
+    select this LoRA by id (e.g. as style_lora_model_id) once it's ready."""
+
     id: str
     brand_id: str
+    category: str
     status: str
-    weights_url: str | None
+    is_ready: bool
     error: str | None
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def from_orm_model(cls, lora) -> "LoraTrainingOut":
+        return cls(
+            id=lora.id,
+            brand_id=lora.brand_id,
+            category=lora.category.value,
+            status=lora.status.value,
+            is_ready=lora.status.value == "succeeded",
+            error=lora.error,
+        )
+
+
+class SharedLoraPresetCreate(BaseModel):
+    key: str
+    name: str
+    category: str
+    weights_url: str
+    default_weight: float = 0.5
+
+
+class SharedLoraPresetOut(BaseModel):
+    id: str
+    key: str
+    name: str
+    category: str
+
+    class Config:
+        from_attributes = True
+
+
+class VideoGenerateRequest(BaseModel):
+    prompt: str | None = None
 
 
 class DocumentTypeOut(BaseModel):

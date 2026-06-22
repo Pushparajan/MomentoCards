@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.models.models import Brand, BrandAsset, LoraModel, TrainingStatus
+from app.models.models import Brand, BrandAsset, LoraCategory, LoraModel, TrainingStatus
 from app.schemas.schemas import LoraTrainingOut
 from app.services import storage
 from app.services.replicate_client import get_training, start_lora_training
@@ -12,11 +12,11 @@ router = APIRouter(prefix="/brands", tags=["training"])
 MIN_TRAINING_IMAGES = 10
 
 
-def _start_training(db: Session, brand_id: str) -> LoraModel:
+def _start_training(db: Session, brand_id: str, category: LoraCategory) -> LoraModel:
     zip_path = storage.zip_brand_assets(brand_id)
-    trigger_word = f"brand{brand_id[:8]}"
+    trigger_word = f"brand{brand_id[:8]}{category.value}"
 
-    lora = LoraModel(brand_id=brand_id, status=TrainingStatus.training)
+    lora = LoraModel(brand_id=brand_id, category=category, status=TrainingStatus.training)
     db.add(lora)
     db.commit()
 
@@ -33,12 +33,15 @@ def _start_training(db: Session, brand_id: str) -> LoraModel:
 
 
 @router.post("/{brand_id}/lora/train-from-upload", response_model=LoraTrainingOut)
-async def upload_images_and_train(brand_id: str, files: list[UploadFile], db: Session = Depends(get_db)):
+async def upload_images_and_train(
+    brand_id: str, files: list[UploadFile], category: LoraCategory = LoraCategory.branding, db: Session = Depends(get_db)
+):
     """One-call flow: user uploads their reference photos (10+) and a custom
     LoRA training run is kicked off immediately on Replicate. Once it
     succeeds (poll via GET .../train/{lora_id}), the resulting weights can be
     selected as `style_lora_model_id` in the campaign Layout stage to brand
-    any card/flyer/etc. generated for this brand."""
+    any card/flyer/etc. generated for this brand. `category` slots the LoRA
+    into the branding/typography/locale/community/subject preset matrix."""
     brand = db.get(Brand, brand_id)
     if not brand:
         raise HTTPException(404, "Brand not found")
@@ -51,11 +54,11 @@ async def upload_images_and_train(brand_id: str, files: list[UploadFile], db: Se
         db.add(asset)
     db.commit()
 
-    return _start_training(db, brand_id)
+    return LoraTrainingOut.from_orm_model(_start_training(db, brand_id, category))
 
 
 @router.post("/{brand_id}/train", response_model=LoraTrainingOut)
-def train_brand_lora(brand_id: str, db: Session = Depends(get_db)):
+def train_brand_lora(brand_id: str, category: LoraCategory = LoraCategory.branding, db: Session = Depends(get_db)):
     """Trains on whatever images were previously uploaded via POST /assets."""
     brand = db.get(Brand, brand_id)
     if not brand:
@@ -64,7 +67,7 @@ def train_brand_lora(brand_id: str, db: Session = Depends(get_db)):
     if asset_count < MIN_TRAINING_IMAGES:
         raise HTTPException(400, f"Upload at least {MIN_TRAINING_IMAGES} reference images before training")
 
-    return _start_training(db, brand_id)
+    return LoraTrainingOut.from_orm_model(_start_training(db, brand_id, category))
 
 
 @router.get("/{brand_id}/train/{lora_id}", response_model=LoraTrainingOut)
@@ -84,11 +87,12 @@ def get_training_status(brand_id: str, lora_id: str, db: Session = Depends(get_d
             lora.error = training.error
         db.commit()
         db.refresh(lora)
-    return lora
+    return LoraTrainingOut.from_orm_model(lora)
 
 
 @router.get("/{brand_id}/loras", response_model=list[LoraTrainingOut])
 def list_loras(brand_id: str, db: Session = Depends(get_db)):
     """Lists all LoRAs trained for this brand, so the user can pick one
     (status == 'succeeded') when generating a card."""
-    return db.query(LoraModel).filter(LoraModel.brand_id == brand_id).order_by(LoraModel.created_at.desc()).all()
+    loras = db.query(LoraModel).filter(LoraModel.brand_id == brand_id).order_by(LoraModel.created_at.desc()).all()
+    return [LoraTrainingOut.from_orm_model(lora) for lora in loras]

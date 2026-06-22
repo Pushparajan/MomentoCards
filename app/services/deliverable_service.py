@@ -140,18 +140,40 @@ def create_deliverable(
     return deliverable
 
 
+def apply_completed_prediction(db: Session, page: DeliverablePage, prediction) -> None:
+    """Shared by polling (refresh_deliverable_status) and the Replicate
+    webhook handler: on success, downloads the (temporary) provider output
+    into app-owned storage immediately rather than trusting the provider URL
+    long-term; the raw provider URL is never persisted."""
+    if prediction.status == "succeeded":
+        output = prediction.output
+        provider_url = output[0] if isinstance(output, list) else output
+        page.output_url = storage.persist_provider_output(page.id, provider_url)
+        page.status = JobStatus.succeeded
+    elif prediction.status == "failed":
+        page.status = JobStatus.failed
+        page.error = prediction.error
+    db.commit()
+
+
+def apply_completed_video_prediction(db: Session, page: DeliverablePage, prediction) -> None:
+    if prediction.status == "succeeded":
+        output = prediction.output
+        provider_url = output[0] if isinstance(output, list) else output
+        page.video_url = storage.persist_provider_output(page.id, provider_url, suffix="_video")
+        page.video_status = JobStatus.succeeded
+    elif prediction.status == "failed":
+        page.video_status = JobStatus.failed
+        page.error = prediction.error
+    db.commit()
+
+
 def refresh_deliverable_status(db: Session, deliverable: Deliverable) -> Deliverable:
     for page in deliverable.pages:
         if page.replicate_prediction_id and page.status == JobStatus.running:
-            prediction = get_prediction(page.replicate_prediction_id)
-            if prediction.status == "succeeded":
-                page.status = JobStatus.succeeded
-                output = prediction.output
-                page.output_url = output[0] if isinstance(output, list) else output
-            elif prediction.status == "failed":
-                page.status = JobStatus.failed
-                page.error = prediction.error
-    db.commit()
+            apply_completed_prediction(db, page, get_prediction(page.replicate_prediction_id))
+        if page.video_replicate_prediction_id and page.video_status == JobStatus.running:
+            apply_completed_video_prediction(db, page, get_prediction(page.video_replicate_prediction_id))
 
     if deliverable.pages and all(p.status == JobStatus.succeeded for p in deliverable.pages):
         deliverable.status = JobStatus.succeeded

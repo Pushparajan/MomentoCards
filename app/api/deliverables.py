@@ -2,14 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.models.models import Brand, Deliverable, DocumentType
-from app.schemas.schemas import DeliverableCreate, DeliverableOut
+from app.models.models import Brand, Deliverable, DeliverablePage, DocumentType
+from app.schemas.schemas import DeliverableOut, DeliverablePageOut, DeliverableCreate, VideoGenerateRequest
 from app.services.deliverable_service import (
     create_deliverable,
     refresh_deliverable_status,
     resolve_ip_adapter_image_url,
     resolve_lora_weights_url,
 )
+from app.services.video_service import start_video_for_page
 
 router = APIRouter(prefix="/deliverables", tags=["deliverables"])
 
@@ -40,3 +41,11 @@ def get_deliverable(deliverable_id: str, db: Session = Depends(get_db)):
     if not deliverable:
         raise HTTPException(404, "Deliverable not found")
     return refresh_deliverable_status(db, deliverable)
+
+
+@router.post("/pages/{page_id}/video", response_model=DeliverablePageOut)
+def generate_video(page_id: str, payload: VideoGenerateRequest, db: Session = Depends(get_db)):
+    page = db.get(DeliverablePage, page_id)
+    if not page:
+        raise HTTPException(404, "Deliverable page not found")
+    return start_video_for_page(db, page, payload.prompt)
