@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     # GET /deliverables/{id} still works as a fallback when this is unset.
     app_base_url: str = ""
 
+    # Automatic LoRA training trigger: kick off training automatically once a
+    # brand has uploaded this many reference assets, instead of requiring an
+    # explicit POST /train call every time.
+    auto_train_asset_threshold: int = 20
+
     class Config:
         env_file = ".env"
 

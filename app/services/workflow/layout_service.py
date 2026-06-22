@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.models import Campaign, CampaignStage, DocumentType, LoraModel, TrainingStatus
+from app.services.template_service import find_best_template
 from app.services.workflow.stages import advance_to, require_stage
 
 
@@ -33,12 +34,20 @@ def set_layout(
     if document_type.requires_grid and not grid_pages:
         raise HTTPException(400, "This document type requires 'grid_pages' (e.g. [{'month': 6, 'year': 2026}])")
 
+    # Template Intelligence layer: best-effort suggestion based on the Goal
+    # stage's intent + goal_text; purely advisory -- the layout/canvas stages
+    # don't require a match, they just get one offered if available.
+    intent = campaign.goal.get("intent")
+    goal_text = campaign.goal.get("goal_text", "")
+    matched_template = find_best_template(db, document_type.id, intent, goal_text)
+
     campaign.layout = {
         "document_type_key": document_type_key,
         "style_lora_model_id": style_lora_model_id,
         "canvas_width": canvas_width,
         "canvas_height": canvas_height,
         "grid_pages": grid_pages or [],
+        "suggested_template_id": matched_template.id if matched_template else None,
     }
     advance_to(campaign, CampaignStage.content)
     db.commit()

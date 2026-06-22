@@ -103,11 +103,22 @@ class Brand(Base):
     primary_color = Column(String, nullable=True)
     secondary_color = Column(String, nullable=True)
     mood_keywords = Column(String, nullable=True)
+    industry = Column(String, nullable=True)  # e.g. "Education", "Wedding", "Political", "Temple/Religious"
+    voice = Column(String, nullable=True)  # e.g. "Inspirational", "Formal", "Playful"
+    fonts = Column(String, nullable=True)  # comma-separated font family names
+    logo_asset_id = Column(String, ForeignKey("brand_assets.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     organization = relationship("Organization", back_populates="brands")
-    assets = relationship("BrandAsset", back_populates="brand", cascade="all, delete-orphan")
+    assets = relationship(
+        "BrandAsset", back_populates="brand", cascade="all, delete-orphan", foreign_keys="BrandAsset.brand_id"
+    )
     lora_models = relationship("LoraModel", back_populates="brand", cascade="all, delete-orphan")
+    rules = relationship("BrandRule", back_populates="brand", cascade="all, delete-orphan")
+    logo_asset = relationship("BrandAsset", foreign_keys=[logo_asset_id], post_update=True)
+
+    def font_list(self) -> list[str]:
+        return [f.strip() for f in self.fonts.split(",") if f.strip()] if self.fonts else []
 
 
 class BrandAsset(Base):
@@ -119,7 +130,7 @@ class BrandAsset(Base):
     kind = Column(String, default="reference")  # reference | logo
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    brand = relationship("Brand", back_populates="assets")
+    brand = relationship("Brand", back_populates="assets", foreign_keys=[brand_id])
 
 
 class LoraModel(Base):
@@ -140,6 +151,56 @@ class LoraModel(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     brand = relationship("Brand", back_populates="lora_models")
+
+
+class BrandRule(Base):
+    """One Brand Governance constraint, validated before launch (Brand
+    Governance layer: e.g. logo_mandatory, primary_color_usage_min_pct,
+    forbidden_fonts). `rule_type` selects which validator in
+    services.governance applies; `value_json` carries its parameters."""
+
+    __tablename__ = "brand_rules"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    brand_id = Column(String, ForeignKey("brands.id"), nullable=False)
+    rule_type = Column(String, nullable=False)  # logo_mandatory | forbidden_fonts | min_primary_color_usage
+    value_json = Column(Text, default="{}")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    brand = relationship("Brand", back_populates="rules")
+
+    @property
+    def value(self) -> dict:
+        return json.loads(self.value_json or "{}")
+
+    @value.setter
+    def value(self, v: dict) -> None:
+        self.value_json = json.dumps(v or {})
+
+
+class Template(Base):
+    """A reusable design template the Template Intelligence layer can match
+    a campaign's goal/intent against (category-based retrieval today;
+    embedding-based vector search is a deferred upgrade -- see
+    services.template_service). Not the same as DocumentType, which is the
+    structural taxonomy (flyer/brochure/calendar/...); a Template is a
+    specific pre-built layout within one of those document types."""
+
+    __tablename__ = "templates"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    document_type_id = Column(String, ForeignKey("document_types.id"), nullable=False)
+    name = Column(String, nullable=False)
+    category = Column(String, nullable=False)  # wedding | birthday | political | religious | educational | retail | real_estate
+    tags = Column(String, default="")  # comma-separated keyword tags used for retrieval
+    canvas_json = Column(Text, default="{}")  # seed fabric.js layout
+    preview_url = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    document_type = relationship("DocumentType")
+
+    def tag_list(self) -> list[str]:
+        return [t.strip() for t in self.tags.split(",") if t.strip()] if self.tags else []
 
 
 class SharedLoraPreset(Base):

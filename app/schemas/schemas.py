@@ -22,6 +22,10 @@ class BrandCreate(BaseModel):
     primary_color: str | None = None
     secondary_color: str | None = None
     mood_keywords: str | None = None
+    industry: str | None = None
+    voice: str | None = None
+    fonts: str | None = None  # comma-separated
+    logo_asset_id: str | None = None
 
 
 class BrandOut(BaseModel):
@@ -31,10 +35,69 @@ class BrandOut(BaseModel):
     primary_color: str | None
     secondary_color: str | None
     mood_keywords: str | None
+    industry: str | None
+    voice: str | None
+    fonts: str | None
+    logo_asset_id: str | None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class BrandRuleCreate(BaseModel):
+    rule_type: str  # logo_mandatory | forbidden_fonts | min_primary_color_usage
+    value: dict = {}
+
+
+class BrandRuleOut(BaseModel):
+    id: str
+    brand_id: str
+    rule_type: str
+    value: dict
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def from_orm_model(cls, rule) -> "BrandRuleOut":
+        return cls(id=rule.id, brand_id=rule.brand_id, rule_type=rule.rule_type, value=rule.value)
+
+
+class TemplateCreate(BaseModel):
+    document_type_key: str
+    name: str
+    category: str
+    tags: list[str] = []
+    canvas_json: dict = {}
+    preview_url: str | None = None
+
+
+class TemplateOut(BaseModel):
+    id: str
+    document_type_id: str
+    name: str
+    category: str
+    tags: list[str]
+    canvas_json: dict
+    preview_url: str | None
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def from_orm_model(cls, template) -> "TemplateOut":
+        import json
+
+        return cls(
+            id=template.id,
+            document_type_id=template.document_type_id,
+            name=template.name,
+            category=template.category,
+            tags=template.tag_list(),
+            canvas_json=json.loads(template.canvas_json or "{}"),
+            preview_url=template.preview_url,
+        )
 
 
 class LoraTrainingOut(BaseModel):

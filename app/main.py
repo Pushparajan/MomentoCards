@@ -4,7 +4,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import brands, campaigns, deliverables, document_types, lora_presets, organizations, training, webhooks
+from app.api import (
+    brand_rules,
+    brands,
+    campaigns,
+    deliverables,
+    document_types,
+    lora_presets,
+    organizations,
+    templates,
+    training,
+    webhooks,
+)
 from app.core.config import settings
 from app.core.db import Base, SessionLocal, engine
 from app.services.catalog_seed import seed_document_types
@@ -29,8 +40,10 @@ app.mount("/storage", StaticFiles(directory=settings.storage_dir), name="storage
 
 app.include_router(organizations.router)
 app.include_router(brands.router)
+app.include_router(brand_rules.router)
 app.include_router(training.router)
 app.include_router(document_types.router)
+app.include_router(templates.router)
 app.include_router(deliverables.router)
 app.include_router(campaigns.router)
 app.include_router(lora_presets.router)

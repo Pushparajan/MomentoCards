@@ -5,31 +5,12 @@ from app.core.db import get_db
 from app.models.models import Brand, BrandAsset, LoraCategory, LoraModel, TrainingStatus
 from app.schemas.schemas import LoraTrainingOut
 from app.services import storage
-from app.services.replicate_client import get_training, start_lora_training
+from app.services.replicate_client import get_training
+from app.services.training_service import start_training as _start_training
 
 router = APIRouter(prefix="/brands", tags=["training"])
 
 MIN_TRAINING_IMAGES = 10
-
-
-def _start_training(db: Session, brand_id: str, category: LoraCategory) -> LoraModel:
-    zip_path = storage.zip_brand_assets(brand_id)
-    trigger_word = f"brand{brand_id[:8]}{category.value}"
-
-    lora = LoraModel(brand_id=brand_id, category=category, status=TrainingStatus.training)
-    db.add(lora)
-    db.commit()
-
-    try:
-        with open(zip_path, "rb") as f:
-            training = start_lora_training(zip_url=f, trigger_word=trigger_word)
-        lora.replicate_training_id = training.id
-    except Exception as exc:  # noqa: BLE001
-        lora.status = TrainingStatus.failed
-        lora.error = str(exc)
-    db.commit()
-    db.refresh(lora)
-    return lora
 
 
 @router.post("/{brand_id}/lora/train-from-upload", response_model=LoraTrainingOut)
