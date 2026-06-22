@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import brands, campaigns, deliverables, document_types, lora_presets, training, webhooks
+from app.api import brands, campaigns, deliverables, document_types, lora_presets, organizations, training, webhooks
 from app.core.config import settings
 from app.core.db import Base, SessionLocal, engine
 from app.services.catalog_seed import seed_document_types
@@ -27,6 +27,7 @@ app.add_middleware(
 
 app.mount("/storage", StaticFiles(directory=settings.storage_dir), name="storage")
 
+app.include_router(organizations.router)
 app.include_router(brands.router)
 app.include_router(training.router)
 app.include_router(document_types.router)

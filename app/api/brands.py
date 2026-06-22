@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.models.models import Brand, BrandAsset
+from app.models.models import Brand, BrandAsset, Organization
 from app.schemas.schemas import BrandCreate, BrandOut
 from app.services import storage
 
@@ -11,6 +11,8 @@ router = APIRouter(prefix="/brands", tags=["brands"])
 
 @router.post("", response_model=BrandOut)
 def create_brand(payload: BrandCreate, db: Session = Depends(get_db)):
+    if payload.organization_id and not db.get(Organization, payload.organization_id):
+        raise HTTPException(404, "Organization not found")
     brand = Brand(**payload.model_dump())
     db.add(brand)
     db.commit()

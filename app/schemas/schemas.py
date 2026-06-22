@@ -3,8 +3,22 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+class OrganizationCreate(BaseModel):
+    name: str
+
+
+class OrganizationOut(BaseModel):
+    id: str
+    name: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class BrandCreate(BaseModel):
     name: str
+    organization_id: str | None = None
     primary_color: str | None = None
     secondary_color: str | None = None
     mood_keywords: str | None = None
@@ -13,6 +27,7 @@ class BrandCreate(BaseModel):
 class BrandOut(BaseModel):
     id: str
     name: str
+    organization_id: str | None
     primary_color: str | None
     secondary_color: str | None
     mood_keywords: str | None
