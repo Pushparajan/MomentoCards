@@ -10,7 +10,13 @@ from app.models.content_models import (
     TemplateStatus,
 )
 from app.services.audit_log import record as audit_record
-from app.services.content.policy_engine import enforce_banned_terms
+from app.services.content.policy_engine import check_restricted_terms, enforce_banned_terms
+
+
+def _log_restricted_term_hits(db: Session, content: GeneratedContent, body: str, change_type: str) -> None:
+    hits = check_restricted_terms(db, body)
+    if hits:
+        audit_record(db, "policy_violation", content_id=content.id, detail={"restricted_terms": hits, "change_type": change_type})
 
 LENGTH_TARGETS = {"short": 60, "medium": 150, "long": 400}
 
@@ -73,6 +79,7 @@ def generate(
 
     db.commit()
     db.refresh(content)
+    _log_restricted_term_hits(db, content, body, "generate")
     audit_record(db, "generate", content_id=content.id, detail={"template_id": template.id, "brand_profile_id": profile.id})
     return content
 
@@ -103,5 +110,6 @@ def rewrite(db: Session, content: GeneratedContent, rewrite_type: str, params: d
     content.status = ContentStatus.draft
     db.commit()
     db.refresh(content)
+    _log_restricted_term_hits(db, content, body, "rewrite")
     audit_record(db, "rewrite", content_id=content.id, detail={"rewrite_type": rewrite_type})
     return content
