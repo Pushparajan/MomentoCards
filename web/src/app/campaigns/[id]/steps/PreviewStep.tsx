@@ -30,6 +30,9 @@ export default function PreviewStep({ campaign, onAdvance }: { campaign: Campaig
       <h2 className="text-lg font-medium">Preview & edit</h2>
       <CanvasEditor
         initialJson={(campaign.preview.canvas_json as Record<string, unknown>) ?? null}
+        backgroundImageUrl={
+          campaign.preview.canvas_json ? undefined : (campaign.layout.custom_background_url as string | undefined)
+        }
         onChange={(json) => {
           latestJson.current = json;
         }}

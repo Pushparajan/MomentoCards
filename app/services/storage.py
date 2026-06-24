@@ -19,6 +19,13 @@ def save_upload(brand_id: str, filename: str, content: bytes) -> str:
     return path
 
 
+def to_url(path: str) -> str:
+    """Converts an absolute on-disk path under settings.storage_dir into the
+    app-served URL exposed via the /storage static mount."""
+    relative = os.path.relpath(path, settings.storage_dir)
+    return f"/storage/{relative}"
+
+
 def zip_brand_assets(brand_id: str) -> str:
     src_dir = asset_dir(brand_id)
     zip_path = os.path.join(settings.storage_dir, "assets", f"{brand_id}.zip")

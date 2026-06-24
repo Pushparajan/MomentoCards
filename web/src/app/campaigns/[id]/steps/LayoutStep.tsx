@@ -10,6 +10,8 @@ export default function LayoutStep({ campaign, onAdvance }: { campaign: Campaign
   const [loraId, setLoraId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [backgroundUrl, setBackgroundUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     api.documentTypes.list().then((types) => {
@@ -18,6 +20,19 @@ export default function LayoutStep({ campaign, onAdvance }: { campaign: Campaign
     });
     api.lora.list(campaign.brand_id).then(setLoras);
   }, [campaign.brand_id]);
+
+  async function uploadBackground(file: File) {
+    setUploading(true);
+    setError(null);
+    try {
+      const { url } = await api.campaigns.uploadLayoutBackground(campaign.id, file);
+      setBackgroundUrl(url);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function submit() {
     if (!documentTypeKey) return;
@@ -70,6 +85,20 @@ export default function LayoutStep({ campaign, onAdvance }: { campaign: Campaign
               <option key={l.id} value={l.id}>{l.name ?? l.id}</option>
             ))}
         </select>
+      </label>
+
+      <label className="flex flex-col gap-1">
+        <span className="text-sm text-zinc-500">Or upload your own image to start from (optional)</span>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => e.target.files?.[0] && uploadBackground(e.target.files[0])}
+        />
+        {uploading && <span className="text-xs text-zinc-500">Uploading…</span>}
+        {backgroundUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={backgroundUrl} alt="Uploaded background" className="mt-1 h-24 w-24 rounded object-cover" />
+        )}
       </label>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

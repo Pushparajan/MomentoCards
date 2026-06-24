@@ -2,8 +2,25 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.models import Campaign, CampaignStage, DocumentType, LoraModel, TrainingStatus
+from app.services import storage
 from app.services.template_service import find_best_template
 from app.services.workflow.stages import advance_to, require_stage
+
+
+def upload_background(db: Session, campaign: Campaign, filename: str, content_bytes: bytes) -> str:
+    """Stores a user-supplied image to seed the Preview canvas as a background
+    layer. This is a straight upload + URL-seeding step, not AI layer
+    separation -- the user still builds/arranges layers themselves in the
+    canvas editor on top of this image."""
+    require_stage(campaign, CampaignStage.layout)
+    path = storage.save_upload(f"campaign_{campaign.id}", filename, content_bytes)
+    url = storage.to_url(path)
+    layout = campaign.layout
+    layout["custom_background_url"] = url
+    campaign.layout = layout
+    db.commit()
+    db.refresh(campaign)
+    return url
 
 
 def set_layout(

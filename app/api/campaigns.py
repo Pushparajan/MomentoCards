@@ -75,6 +75,14 @@ def set_layout(campaign_id: str, payload: LayoutRequest, db: Session = Depends(g
     )
 
 
+@router.post("/{campaign_id}/layout/background")
+async def upload_layout_background(campaign_id: str, file: UploadFile, db: Session = Depends(get_db)):
+    campaign = _get_campaign(db, campaign_id)
+    content_bytes = await file.read()
+    url = layout_service.upload_background(db, campaign, file.filename, content_bytes)
+    return {"url": url}
+
+
 @router.post("/{campaign_id}/content/text", response_model=CampaignOut)
 def set_content_text(campaign_id: str, payload: ContentTextRequest, db: Session = Depends(get_db)):
     campaign = _get_campaign(db, campaign_id)

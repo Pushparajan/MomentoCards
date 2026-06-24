@@ -179,6 +179,11 @@ export const api = {
     ) => request<Campaign>(`/campaigns/${id}/goal`, { method: "POST", body: JSON.stringify(payload) }),
     setLayout: (id: string, payload: Record<string, unknown>) =>
       request<Campaign>(`/campaigns/${id}/layout`, { method: "POST", body: JSON.stringify(payload) }),
+    uploadLayoutBackground: (id: string, file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      return request<{ url: string }>(`/campaigns/${id}/layout/background`, { method: "POST", body: form });
+    },
     setContentText: (id: string, textFields: Record<string, unknown>) =>
       request<Campaign>(`/campaigns/${id}/content/text`, { method: "POST", body: JSON.stringify({ text_fields: textFields }) }),
     uploadContentPhotos: (id: string, files: File[]) => {
