@@ -135,6 +135,12 @@ def generate(campaign_id: str, db: Session = Depends(get_db)):
     return generate_service.run_generate(db, campaign)
 
 
+@router.get("/{campaign_id}/generate/progress")
+def generate_progress(campaign_id: str, db: Session = Depends(get_db)):
+    campaign = _get_campaign(db, campaign_id)
+    return generate_service.get_progress(db, campaign)
+
+
 @router.put("/{campaign_id}/review/final-canvas", response_model=CampaignOut)
 def save_final_canvas(campaign_id: str, payload: FinalCanvasSaveRequest, db: Session = Depends(get_db)):
     campaign = _get_campaign(db, campaign_id)

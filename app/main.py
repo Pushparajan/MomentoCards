@@ -12,6 +12,7 @@ from app.api import (
     campaigns,
     content_admin,
     content_templates,
+    dashboard,
     deliverables,
     document_types,
     exports,
@@ -65,6 +66,7 @@ app.include_router(audit.router)
 app.include_router(exports.router)
 app.include_router(content_admin.router)
 app.include_router(profile.router)
+app.include_router(dashboard.router)
 
 
 @app.get("/health")

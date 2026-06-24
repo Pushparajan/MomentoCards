@@ -59,3 +59,36 @@ def run_generate(db: Session, campaign: Campaign) -> Campaign:
     db.commit()
     db.refresh(campaign)
     return campaign
+
+
+# Cosmetic sub-task labels for the Generate step's progress checklist (mock:
+# "Polishing your copy" / "Painting the artwork" / "Composing your layout").
+# Derived deterministically from the underlying Deliverable/page job status --
+# there's no separate per-substep tracking on the provider side.
+PROGRESS_STEPS = ["Polishing your copy", "Painting the artwork", "Composing your layout"]
+
+
+def get_progress(db: Session, campaign: Campaign) -> list[dict]:
+    from app.services.deliverable_service import refresh_deliverable_status
+
+    if not campaign.deliverable_id:
+        return [{"label": label, "status": "pending"} for label in PROGRESS_STEPS]
+
+    deliverable = db.get(campaign.deliverable.__class__, campaign.deliverable_id)
+    deliverable = refresh_deliverable_status(db, deliverable)
+
+    if deliverable.status.value == "failed":
+        return [{"label": PROGRESS_STEPS[0], "status": "failed"}] + [
+            {"label": label, "status": "pending"} for label in PROGRESS_STEPS[1:]
+        ]
+    if deliverable.status.value == "succeeded":
+        return [{"label": label, "status": "done"} for label in PROGRESS_STEPS]
+
+    done_pages = sum(1 for p in deliverable.pages if p.status.value == "succeeded")
+    total_pages = max(len(deliverable.pages), 1)
+    fraction = done_pages / total_pages
+    steps = []
+    for i, label in enumerate(PROGRESS_STEPS):
+        threshold = (i + 1) / len(PROGRESS_STEPS)
+        steps.append({"label": label, "status": "done" if fraction >= threshold else "running" if i == 0 or fraction >= i / len(PROGRESS_STEPS) else "pending"})
+    return steps
