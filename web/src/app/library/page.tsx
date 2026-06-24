@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, Deliverable } from "@/lib/api";
 import { useBrand } from "@/lib/useBrand";
@@ -33,6 +34,9 @@ export default function LibraryPage() {
     <main className="p-8 flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Library</h1>
+        <Link href="/campaigns/new" className="rounded bg-zinc-950 px-4 py-2 text-sm text-white dark:bg-zinc-50 dark:text-black">
+          + Create new
+        </Link>
       </div>
       <div className="flex gap-2">
         {(["all", "favorites"] as Filter[]).map((f) => (
