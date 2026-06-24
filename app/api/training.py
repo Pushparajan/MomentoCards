@@ -15,7 +15,13 @@ MIN_TRAINING_IMAGES = 10
 
 @router.post("/{brand_id}/lora/train-from-upload", response_model=LoraTrainingOut)
 async def upload_images_and_train(
-    brand_id: str, files: list[UploadFile], category: LoraCategory = LoraCategory.branding, db: Session = Depends(get_db)
+    brand_id: str,
+    files: list[UploadFile],
+    category: LoraCategory = LoraCategory.branding,
+    subject_type: str = "style",
+    name: str | None = None,
+    description: str | None = None,
+    db: Session = Depends(get_db),
 ):
     """One-call flow: user uploads their reference photos (10+) and a custom
     LoRA training run is kicked off immediately on Replicate. Once it
@@ -35,11 +41,18 @@ async def upload_images_and_train(
         db.add(asset)
     db.commit()
 
-    return LoraTrainingOut.from_orm_model(_start_training(db, brand_id, category))
+    return LoraTrainingOut.from_orm_model(_start_training(db, brand_id, category, subject_type, name, description))
 
 
 @router.post("/{brand_id}/train", response_model=LoraTrainingOut)
-def train_brand_lora(brand_id: str, category: LoraCategory = LoraCategory.branding, db: Session = Depends(get_db)):
+def train_brand_lora(
+    brand_id: str,
+    category: LoraCategory = LoraCategory.branding,
+    subject_type: str = "style",
+    name: str | None = None,
+    description: str | None = None,
+    db: Session = Depends(get_db),
+):
     """Trains on whatever images were previously uploaded via POST /assets."""
     brand = db.get(Brand, brand_id)
     if not brand:
@@ -48,7 +61,21 @@ def train_brand_lora(brand_id: str, category: LoraCategory = LoraCategory.brandi
     if asset_count < MIN_TRAINING_IMAGES:
         raise HTTPException(400, f"Upload at least {MIN_TRAINING_IMAGES} reference images before training")
 
-    return LoraTrainingOut.from_orm_model(_start_training(db, brand_id, category))
+    return LoraTrainingOut.from_orm_model(_start_training(db, brand_id, category, subject_type, name, description))
+
+
+@router.post("/{brand_id}/train/{lora_id}/retry", response_model=LoraTrainingOut)
+def retry_training(brand_id: str, lora_id: str, db: Session = Depends(get_db)):
+    """Re-kicks a failed training run (mock's "Training failed" + Retry action)."""
+    lora = db.get(LoraModel, lora_id)
+    if not lora or lora.brand_id != brand_id:
+        raise HTTPException(404, "Training job not found")
+    if lora.status != TrainingStatus.failed:
+        raise HTTPException(400, "Only failed training jobs can be retried")
+    lora.status = TrainingStatus.training
+    lora.error = None
+    db.commit()
+    return LoraTrainingOut.from_orm_model(_start_training(db, brand_id, lora.category, lora.subject_type, lora.name, lora.description, existing=lora))
 
 
 @router.get("/{brand_id}/train/{lora_id}", response_model=LoraTrainingOut)

@@ -107,6 +107,9 @@ class LoraTrainingOut(BaseModel):
     id: str
     brand_id: str
     category: str
+    name: str | None
+    description: str | None
+    subject_type: str
     status: str
     is_ready: bool
     error: str | None
@@ -120,6 +123,9 @@ class LoraTrainingOut(BaseModel):
             id=lora.id,
             brand_id=lora.brand_id,
             category=lora.category.value,
+            name=lora.name,
+            description=lora.description,
+            subject_type=lora.subject_type,
             status=lora.status.value,
             is_ready=lora.status.value == "succeeded",
             error=lora.error,
@@ -208,10 +214,42 @@ class DeliverableOut(BaseModel):
     style: str
     status: str
     error: str | None
+    is_favorite: bool = False
     pages: list[DeliverablePageOut] = []
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def from_orm_model(cls, d) -> "DeliverableOut":
+        return cls(
+            id=d.id,
+            brand_id=d.brand_id,
+            document_type_id=d.document_type_id,
+            title=d.title,
+            style=d.style,
+            status=d.status.value,
+            error=d.error,
+            is_favorite=bool(d.is_favorite),
+            pages=[DeliverablePageOut.model_validate(p) for p in d.pages],
+        )
+
+
+class FavoriteToggleRequest(BaseModel):
+    is_favorite: bool
+
+
+class ProfileOut(BaseModel):
+    id: str
+    email: str
+    display_name: str | None
+
+    class Config:
+        from_attributes = True
+
+
+class ProfileUpdate(BaseModel):
+    display_name: str | None = None
 
 
 # --- Campaign workflow (Goal -> Layout -> Content -> Preview -> Audience -> Generate -> Review -> Launch) ---
@@ -224,6 +262,9 @@ class CampaignCreate(BaseModel):
 class GoalRequest(BaseModel):
     goal_text: str
     intent: str  # e.g. "promotion", "event", "announcement"
+    tones: list[str] = []  # e.g. ["playful", "formal"]
+    audience_hint: str | None = None  # "who's it for"
+    include_notes: str | None = None  # "anything to include"
 
 
 class LayoutRequest(BaseModel):

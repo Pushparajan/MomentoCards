@@ -18,6 +18,7 @@ from app.api import (
     generated_content,
     lora_presets,
     organizations,
+    profile,
     review,
     templates,
     training,
@@ -63,6 +64,7 @@ app.include_router(review.router)
 app.include_router(audit.router)
 app.include_router(exports.router)
 app.include_router(content_admin.router)
+app.include_router(profile.router)
 
 
 @app.get("/health")

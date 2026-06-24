@@ -56,7 +56,9 @@ def get_campaign(campaign_id: str, db: Session = Depends(get_db)):
 @router.post("/{campaign_id}/goal", response_model=CampaignOut)
 def set_goal(campaign_id: str, payload: GoalRequest, db: Session = Depends(get_db)):
     campaign = _get_campaign(db, campaign_id)
-    return goal_service.set_goal(db, campaign, payload.goal_text, payload.intent)
+    return goal_service.set_goal(
+        db, campaign, payload.goal_text, payload.intent, payload.tones, payload.audience_hint, payload.include_notes
+    )
 
 
 @router.post("/{campaign_id}/layout", response_model=CampaignOut)

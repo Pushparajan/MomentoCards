@@ -143,6 +143,9 @@ class LoraModel(Base):
     id = Column(String, primary_key=True, default=gen_id)
     brand_id = Column(String, ForeignKey("brands.id"), nullable=False)
     category = Column(Enum(LoraCategory), default=LoraCategory.branding)
+    name = Column(String, nullable=True)
+    description = Column(Text, nullable=True)
+    subject_type = Column(String, default="style")  # style | subject (mock wizard's step-1 choice)
     replicate_training_id = Column(String, nullable=True)
     status = Column(Enum(TrainingStatus), default=TrainingStatus.pending)
     weights_url = Column(String, nullable=True)
@@ -254,6 +257,7 @@ class Deliverable(Base):
     media_type = Column(Enum(MediaType), default=MediaType.image)
     status = Column(Enum(JobStatus), default=JobStatus.pending)
     error = Column(Text, nullable=True)
+    is_favorite = Column(Integer, default=0)  # bool: Library "favorite" heart toggle
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -358,6 +362,21 @@ class CampaignAsset(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     campaign = relationship("Campaign", back_populates="assets")
+
+
+class Profile(Base):
+    """Single-tenant placeholder for the Profile settings screen. No auth
+    system exists yet, so this is a singleton row rather than a per-session
+    user; email is set once and never edited (matches the mock's disabled
+    Email field with the "Email can't be changed." caption)."""
+
+    __tablename__ = "profiles"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    email = Column(String, nullable=False)
+    display_name = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class WebhookEvent(Base):
