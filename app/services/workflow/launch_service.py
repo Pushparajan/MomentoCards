@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.models import Campaign, CampaignStage, JobStatus
+from app.services.governance import validate_brand_rules
 from app.services.workflow.stages import advance_to, require_stage
 
 
@@ -16,6 +17,10 @@ def launch(db: Session, campaign: Campaign) -> Campaign:
         raise HTTPException(400, "Deliverable is not finished generating yet")
     if not campaign.review.get("final_approved"):
         raise HTTPException(400, "Final WYSIWYG canvas must be saved and approved before launch")
+
+    violations = validate_brand_rules(db, campaign.brand)
+    if violations:
+        raise HTTPException(400, "Brand governance check failed: " + "; ".join(violations))
 
     output_urls = [p.output_url for p in deliverable.pages]
     campaign.launch = {"output_urls": output_urls, "fulfillment": "digital_export"}

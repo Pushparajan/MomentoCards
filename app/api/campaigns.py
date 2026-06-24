@@ -56,7 +56,9 @@ def get_campaign(campaign_id: str, db: Session = Depends(get_db)):
 @router.post("/{campaign_id}/goal", response_model=CampaignOut)
 def set_goal(campaign_id: str, payload: GoalRequest, db: Session = Depends(get_db)):
     campaign = _get_campaign(db, campaign_id)
-    return goal_service.set_goal(db, campaign, payload.goal_text, payload.intent)
+    return goal_service.set_goal(
+        db, campaign, payload.goal_text, payload.intent, payload.tones, payload.audience_hint, payload.include_notes
+    )
 
 
 @router.post("/{campaign_id}/layout", response_model=CampaignOut)
@@ -71,6 +73,14 @@ def set_layout(campaign_id: str, payload: LayoutRequest, db: Session = Depends(g
         payload.canvas_height,
         payload.grid_pages,
     )
+
+
+@router.post("/{campaign_id}/layout/background")
+async def upload_layout_background(campaign_id: str, file: UploadFile, db: Session = Depends(get_db)):
+    campaign = _get_campaign(db, campaign_id)
+    content_bytes = await file.read()
+    url = layout_service.upload_background(db, campaign, file.filename, content_bytes)
+    return {"url": url}
 
 
 @router.post("/{campaign_id}/content/text", response_model=CampaignOut)
@@ -131,6 +141,12 @@ def complete_audience(campaign_id: str, db: Session = Depends(get_db)):
 def generate(campaign_id: str, db: Session = Depends(get_db)):
     campaign = _get_campaign(db, campaign_id)
     return generate_service.run_generate(db, campaign)
+
+
+@router.get("/{campaign_id}/generate/progress")
+def generate_progress(campaign_id: str, db: Session = Depends(get_db)):
+    campaign = _get_campaign(db, campaign_id)
+    return generate_service.get_progress(db, campaign)
 
 
 @router.put("/{campaign_id}/review/final-canvas", response_model=CampaignOut)

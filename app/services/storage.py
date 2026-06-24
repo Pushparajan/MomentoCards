@@ -1,6 +1,7 @@
 import os
-import shutil
 import zipfile
+
+import httpx
 
 from app.core.config import settings
 
@@ -16,6 +17,13 @@ def save_upload(brand_id: str, filename: str, content: bytes) -> str:
     with open(path, "wb") as f:
         f.write(content)
     return path
+
+
+def to_url(path: str) -> str:
+    """Converts an absolute on-disk path under settings.storage_dir into the
+    app-served URL exposed via the /storage static mount."""
+    relative = os.path.relpath(path, settings.storage_dir)
+    return f"/storage/{relative}"
 
 
 def zip_brand_assets(brand_id: str) -> str:
@@ -39,3 +47,19 @@ def grid_paths(job_id: str) -> tuple[str, str]:
     base = os.path.join(settings.storage_dir, "grids")
     os.makedirs(base, exist_ok=True)
     return os.path.join(base, f"{job_id}_grid.png"), os.path.join(base, f"{job_id}_canny.png")
+
+
+def persist_provider_output(item_id: str, provider_url: str, suffix: str = "") -> str:
+    """Downloads a (temporary) Replicate output URL into app-owned storage and
+    returns a stable, app-served URL (/storage/outputs/...). Never returns the
+    raw provider URL to callers -- provider outputs are not the source of
+    truth for long-term storage."""
+    ext = provider_url.split("?")[0].rsplit(".", 1)[-1][:5] or "bin"
+    filename = f"{item_id}{suffix}.{ext}"
+    dest_path = output_path(item_id + suffix, ext)
+    with httpx.stream("GET", provider_url, timeout=120) as response:
+        response.raise_for_status()
+        with open(dest_path, "wb") as f:
+            for chunk in response.iter_bytes():
+                f.write(chunk)
+    return f"/storage/outputs/{filename}"

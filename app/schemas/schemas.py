@@ -3,34 +3,155 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
-class BrandCreate(BaseModel):
+class OrganizationCreate(BaseModel):
     name: str
-    primary_color: str | None = None
-    secondary_color: str | None = None
-    mood_keywords: str | None = None
 
 
-class BrandOut(BaseModel):
+class OrganizationOut(BaseModel):
     id: str
     name: str
-    primary_color: str | None
-    secondary_color: str | None
-    mood_keywords: str | None
     created_at: datetime
 
     class Config:
         from_attributes = True
 
 
-class LoraTrainingOut(BaseModel):
+class BrandCreate(BaseModel):
+    name: str
+    organization_id: str | None = None
+    primary_color: str | None = None
+    secondary_color: str | None = None
+    mood_keywords: str | None = None
+    industry: str | None = None
+    voice: str | None = None
+    fonts: str | None = None  # comma-separated
+    logo_asset_id: str | None = None
+
+
+class BrandOut(BaseModel):
+    id: str
+    name: str
+    organization_id: str | None
+    primary_color: str | None
+    secondary_color: str | None
+    mood_keywords: str | None
+    industry: str | None
+    voice: str | None
+    fonts: str | None
+    logo_asset_id: str | None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class BrandRuleCreate(BaseModel):
+    rule_type: str  # logo_mandatory | forbidden_fonts | min_primary_color_usage
+    value: dict = {}
+
+
+class BrandRuleOut(BaseModel):
     id: str
     brand_id: str
+    rule_type: str
+    value: dict
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def from_orm_model(cls, rule) -> "BrandRuleOut":
+        return cls(id=rule.id, brand_id=rule.brand_id, rule_type=rule.rule_type, value=rule.value)
+
+
+class TemplateCreate(BaseModel):
+    document_type_key: str
+    name: str
+    category: str
+    tags: list[str] = []
+    canvas_json: dict = {}
+    preview_url: str | None = None
+
+
+class TemplateOut(BaseModel):
+    id: str
+    document_type_id: str
+    name: str
+    category: str
+    tags: list[str]
+    canvas_json: dict
+    preview_url: str | None
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def from_orm_model(cls, template) -> "TemplateOut":
+        import json
+
+        return cls(
+            id=template.id,
+            document_type_id=template.document_type_id,
+            name=template.name,
+            category=template.category,
+            tags=template.tag_list(),
+            canvas_json=json.loads(template.canvas_json or "{}"),
+            preview_url=template.preview_url,
+        )
+
+
+class LoraTrainingOut(BaseModel):
+    """Never exposes weights_url/file paths to the client -- only enough to
+    select this LoRA by id (e.g. as style_lora_model_id) once it's ready."""
+
+    id: str
+    brand_id: str
+    category: str
+    name: str | None
+    description: str | None
+    subject_type: str
     status: str
-    weights_url: str | None
+    is_ready: bool
     error: str | None
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def from_orm_model(cls, lora) -> "LoraTrainingOut":
+        return cls(
+            id=lora.id,
+            brand_id=lora.brand_id,
+            category=lora.category.value,
+            name=lora.name,
+            description=lora.description,
+            subject_type=lora.subject_type,
+            status=lora.status.value,
+            is_ready=lora.status.value == "succeeded",
+            error=lora.error,
+        )
+
+
+class SharedLoraPresetCreate(BaseModel):
+    key: str
+    name: str
+    category: str
+    weights_url: str
+    default_weight: float = 0.5
+
+
+class SharedLoraPresetOut(BaseModel):
+    id: str
+    key: str
+    name: str
+    category: str
+
+    class Config:
+        from_attributes = True
+
+
+class VideoGenerateRequest(BaseModel):
+    prompt: str | None = None
 
 
 class DocumentTypeOut(BaseModel):
@@ -93,10 +214,42 @@ class DeliverableOut(BaseModel):
     style: str
     status: str
     error: str | None
+    is_favorite: bool = False
     pages: list[DeliverablePageOut] = []
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def from_orm_model(cls, d) -> "DeliverableOut":
+        return cls(
+            id=d.id,
+            brand_id=d.brand_id,
+            document_type_id=d.document_type_id,
+            title=d.title,
+            style=d.style,
+            status=d.status.value,
+            error=d.error,
+            is_favorite=bool(d.is_favorite),
+            pages=[DeliverablePageOut.model_validate(p) for p in d.pages],
+        )
+
+
+class FavoriteToggleRequest(BaseModel):
+    is_favorite: bool
+
+
+class ProfileOut(BaseModel):
+    id: str
+    email: str
+    display_name: str | None
+
+    class Config:
+        from_attributes = True
+
+
+class ProfileUpdate(BaseModel):
+    display_name: str | None = None
 
 
 # --- Campaign workflow (Goal -> Layout -> Content -> Preview -> Audience -> Generate -> Review -> Launch) ---
@@ -109,6 +262,9 @@ class CampaignCreate(BaseModel):
 class GoalRequest(BaseModel):
     goal_text: str
     intent: str  # e.g. "promotion", "event", "announcement"
+    tones: list[str] = []  # e.g. ["playful", "formal"]
+    audience_hint: str | None = None  # "who's it for"
+    include_notes: str | None = None  # "anything to include"
 
 
 class LayoutRequest(BaseModel):

@@ -7,6 +7,17 @@ from app.core.config import settings
 _client = replicate.Client(api_token=settings.replicate_api_token)
 
 
+def _webhook_kwargs() -> dict:
+    """Attaches a Replicate webhook callback when APP_BASE_URL is configured,
+    so completion is pushed to us instead of relying solely on polling."""
+    if not settings.app_base_url:
+        return {}
+    return {
+        "webhook": f"{settings.app_base_url.rstrip('/')}/webhooks/replicate",
+        "webhook_events_filter": ["completed"],
+    }
+
+
 def start_lora_training(zip_url: str, trigger_word: str) -> Any:
     """Kicks off a fast LoRA training run for a brand's 15-20 reference images.
     Mirrors the 'Dynamic LoRA Approach': train a lightweight, brand-specific
@@ -58,6 +69,22 @@ def generate_calendar_page(
     prediction = _client.predictions.create(
         version=settings.flux_controlnet_model,
         input=model_input,
+        **_webhook_kwargs(),
+    )
+    return prediction
+
+
+def start_video_from_keyframe(keyframe_image_url: str, prompt: str | None = None) -> Any:
+    """Generates a short video using a previously-generated image as the
+    keyframe (img2vid)."""
+    model_input: dict = {"input_image": keyframe_image_url}
+    if prompt:
+        model_input["prompt"] = prompt
+
+    prediction = _client.predictions.create(
+        version=settings.video_model,
+        input=model_input,
+        **_webhook_kwargs(),
     )
     return prediction
 
